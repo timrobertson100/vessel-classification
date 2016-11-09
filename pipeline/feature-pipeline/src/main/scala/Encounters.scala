@@ -1,4 +1,4 @@
-package org.skytruth.feature_pipeline
+package org.globalfishingwatch.dataflow.feature_pipeline
 
 import io.github.karols.units._
 import io.github.karols.units.SI._
@@ -8,7 +8,7 @@ import com.google.common.geometry.S2CellId
 import com.typesafe.scalalogging.LazyLogging
 import com.spotify.scio.values.SCollection
 import org.joda.time.{Duration, Instant}
-import org.skytruth.common.Implicits
+import org.globalfishingwatch.dataflow.common.Implicits
 
 import scala.collection.{mutable, immutable}
 

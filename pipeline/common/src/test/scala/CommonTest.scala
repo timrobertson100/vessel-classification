@@ -1,4 +1,4 @@
-package org.skytruth.common
+package org.globalfishingwatch.dataflow.common
 
 import org.scalatest._
 

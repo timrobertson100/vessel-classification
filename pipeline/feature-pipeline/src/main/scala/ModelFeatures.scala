@@ -1,4 +1,4 @@
-package org.skytruth.feature_pipeline
+package org.globalfishingwatch.dataflow.feature_pipeline
 
 import io.github.karols.units._
 import io.github.karols.units.SI._
@@ -7,7 +7,7 @@ import com.google.common.geometry.{S2, S2LatLng}
 import com.spotify.scio.values.SCollection
 import com.typesafe.scalalogging.{LazyLogging, Logger}
 import org.joda.time.{DateTimeZone, Duration, Instant, LocalDateTime}
-import org.skytruth.common.Implicits
+import org.globalfishingwatch.dataflow.common.Implicits
 import org.tensorflow.example.{
   Example,
   Feature,

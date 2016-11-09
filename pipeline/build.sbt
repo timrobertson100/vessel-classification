@@ -9,7 +9,7 @@ val tfExampleProtoFiles =
   TaskKey[Seq[File]]("tf-example-protos", "Set of protos defining TF example.")
 
 lazy val commonSettings = Seq(
-  organization := "org.skytruth",
+  organization := "org.globalfishingwatch",
   version := "0.0.1",
   scalaVersion := "2.11.8",
   scalacOptions ++= Seq("-optimize"),

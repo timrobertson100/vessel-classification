@@ -1,4 +1,4 @@
-package org.skytruth.feature_pipeline
+package org.globalfishingwatch.dataflow.feature_pipeline
 
 import io.github.karols.units._
 import io.github.karols.units.SI._
@@ -27,7 +27,7 @@ import org.joda.time.{DateTime, DateTimeZone, Duration, Instant, LocalDateTime}
 import org.json4s._
 import org.json4s.JsonDSL.WithDouble._
 import org.json4s.native.JsonMethods._
-import org.skytruth.common.{Implicits => STImplicits}
+import org.globalfishingwatch.dataflow.common.{Implicits => STImplicits}
 import org.skytruth.dataflow.{TFRecordSink, TFRecordUtils}
 
 import scala.collection.{mutable, immutable}

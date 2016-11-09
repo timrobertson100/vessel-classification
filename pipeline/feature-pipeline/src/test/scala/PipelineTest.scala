@@ -1,4 +1,4 @@
-package org.skytruth.feature_pipeline
+package org.globalfishingwatch.dataflow.feature_pipeline
 
 import com.spotify.scio.bigquery.TableRow
 import com.spotify.scio.testing.PipelineSpec

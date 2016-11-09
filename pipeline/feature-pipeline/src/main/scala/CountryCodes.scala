@@ -1,4 +1,4 @@
-package org.skytruth.feature_pipeline
+package org.globalfishingwatch.dataflow.feature_pipeline
 
 object CountryCodes {
   def fromMmsi(mmsi: Int) = {

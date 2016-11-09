@@ -1,4 +1,4 @@
-package org.skytruth.common
+package org.globalfishingwatch.dataflow.common
 
 import com.typesafe.scalalogging.{LazyLogging, Logger}
 import org.joda.time.{DateTime, DateTimeZone}
