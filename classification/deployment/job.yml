@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inference
+spec:
+  template:
+    metadata:
+      name: inference
+    spec:
+      containers:
+      - name: inference
+        image: gcr.io/world-fishing-827/pipeline-ml
+        command: ["python", "-m", "classification.run_inference", "alex.fishing_range_classification", "--root_feature_path", "gs://alex-dataflow-scratch/features-scratch/new_features_ports_anchorage/20161018T153546Z/features", "--inference_parallelism", "20", "--feature_dimensions", "11", "--dataset_split", "Test", "--inference_results_path=./results/fishing_range_classification.json.gz", "--model_checkpoint_path", "./output/fishing_range.model.ckpt"]
+      restartPolicy: Never
+
+
+

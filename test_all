@@ -14,5 +14,3 @@ python -m classification.objectives_test
 python -m classification.models.models_test
 popd
 
-# Build docker containers
-docker build -f deployment/inference/Dockerfile .

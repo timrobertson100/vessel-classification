@@ -6,3 +6,5 @@ target
 dist/
 *.egg-info
 
+pipeline/.cache/
+classification/.cache/

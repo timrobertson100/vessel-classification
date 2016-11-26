@@ -1,0 +1,10 @@
+#! /bin/bash
+set -e
+cd `dirname $0`
+
+echo "Building docker image"
+docker build -t gcr.io/world-fishing-827/pipeline-ml -f ./Dockerfile ../
+
+# echo "Pushing image to GCR"
+gcloud docker -- push gcr.io/world-fishing-827/pipeline-ml
+
