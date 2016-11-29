@@ -36,16 +36,6 @@ lazy val commonSettings = Seq(
   )
 )
 
-// TODO(alexwilson): Download these files from github TF repo rather than having our own copy.
-lazy val tfExampleProtos = project
-  .in(file("tf-example-protos"))
-  .settings(commonSettings: _*)
-  .settings(PB.protobufSettings: _*)
-  .settings(
-    Seq(
-      includePaths in PB.protobufConfig += (sourceDirectory in PB.protobufConfig).value
-    ))
-
 lazy val common = project.in(file("common")).settings(commonSettings: _*)
 
 // Pipeline for annotating AIS messages with other attributes (such as when
@@ -64,7 +54,7 @@ lazy val featurePipeline =
                                     "org.json4s" %% "json4s-native" % "3.3.0",
                                     "org.jgrapht" % "jgrapht-core" % "1.0.0")
       ))
-    .dependsOn(tfExampleProtos, common)
+    .dependsOn(common)
 
 // An aggregation of all projects.
 lazy val root = (project in file(".")).aggregate(common, aisAnnotatorPipeline, featurePipeline)

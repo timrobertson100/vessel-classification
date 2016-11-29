@@ -254,15 +254,6 @@ object Pipeline extends LazyLogging {
         Anchorages.findAnchoragePointCells(processed)
       val anchorages = Anchorages.buildAnchoragesFromAnchoragePoints(anchoragePoints)
 
-      if (generateModelFeatures) {
-        val features = ModelFeatures.buildVesselFeatures(processed, anchorages).map {
-          case (md, feature) =>
-            (s"${md.mmsi}", feature)
-        }
-        // Output vessel classifier features.
-        val outputFeaturePath = config.pipelineOutputPath + "/features"
-        val res = Utility.oneFilePerTFRecordSink(outputFeaturePath, features)
-      }
 
       if (generateAnchorages) {
         // Output anchorages points.

@@ -10,17 +10,7 @@ import org.joda.time.{DateTimeZone, Duration, Instant, LocalDateTime}
 import org.skytruth.common.AdditionalUnits._
 import org.skytruth.common.Implicits._
 import org.skytruth.common.{AdjacencyLookup, LatLon, ValueCache}
-import org.tensorflow.example.{
-  Example,
-  Feature,
-  Features,
-  FeatureList,
-  FeatureLists,
-  SequenceExample,
-  Int64List,
-  FloatList,
-  BytesList
-}
+
 
 object ModelFeatures extends LazyLogging {
 
@@ -148,54 +138,4 @@ object ModelFeatures extends LazyLogging {
       .toIndexedSeq
   }
 
-  def buildTFExampleProto(metadata: VesselMetadata, data: Seq[Array[Double]]): SequenceExample = {
-    val example = SequenceExample.newBuilder()
-    val contextBuilder = example.getContextBuilder()
-
-    // Add the mmsi, weight and vessel type to the builder
-    contextBuilder.putFeature(
-      "mmsi",
-      Feature.newBuilder().setInt64List(Int64List.newBuilder().addValue(metadata.mmsi)).build())
-
-    // Add all the sequence data as a feature.
-    val sequenceData = FeatureList.newBuilder()
-    data.foreach { datum =>
-      val floatData = FloatList.newBuilder()
-      datum.foreach { v =>
-        floatData.addValue(v.toFloat)
-      }
-      sequenceData.addFeature(Feature.newBuilder().setFloatList(floatData.build()))
-    }
-    val featureLists = FeatureLists.newBuilder()
-    featureLists.putFeatureList("movement_features", sequenceData.build())
-    example.setFeatureLists(featureLists)
-
-    example.build()
-  }
-
-  def buildVesselFeatures(
-      input: SCollection[(VesselMetadata, ProcessedLocations)],
-      anchorages: SCollection[Anchorage]): SCollection[(VesselMetadata, SequenceExample)] = {
-    val siAnchorages = anchorages.asListSideInput
-
-    val anchorageLookupCache = ValueCache[AdjacencyLookup[Anchorage]]()
-    input
-      .withSideInputs(siAnchorages)
-      .filter {
-        case ((metadata, processedLocations), _) => processedLocations.locations.size >= 3
-      }
-      .map {
-        case ((metadata, processedLocations), s) =>
-          val anchorageLookup = anchorageLookupCache.get { () =>
-            AdjacencyLookup(s(siAnchorages),
-                            (v: Anchorage) => v.meanLocation,
-                            Parameters.anchorageVisitDistanceThreshold,
-                            Parameters.anchoragesS2Scale)
-          }
-          val features = buildSingleVesselFeatures(processedLocations.locations, anchorageLookup)
-          val featuresAsTFExample = buildTFExampleProto(metadata, features)
-          (metadata, featuresAsTFExample)
-      }
-      .toSCollection
-  }
 }
