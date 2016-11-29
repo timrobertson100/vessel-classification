@@ -136,14 +136,13 @@ object AISAnnotator extends LazyLogging {
         case ((mmsi, json), ctx) =>
           val mmsiSet = allowedMMSIs.get(() => ctx(mmsisWithAnnotation))
 
-          mmsiSet.contains(mmsi)
+          // Keep only relevant MMSIs and records with a location.
+          mmsiSet.contains(mmsi) && json.has("lat") && json.has("lon")
       }
       .toSCollection
 
     // Remove all but location messages and key by mmsi.
-    val filteredGroupedByMmsi = filteredAISMessages
-    // Keep only records with a location.
-    .filter { case (_, json) => json.has("lat") && json.has("lon") }.groupByKey
+    val filteredGroupedByMmsi = filteredAISMessages.groupByKey
 
     filteredGroupedByMmsi.join(annotationsByMmsi).flatMap {
       case (mmsi, (messagesIt, annotationsIt)) =>
