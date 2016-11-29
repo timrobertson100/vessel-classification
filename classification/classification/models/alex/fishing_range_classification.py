@@ -21,8 +21,8 @@ class Model(abstract_models.MisconceptionWithFishingRangesModel):
 
     window_size = 3
     stride = 2
-    feature_depth = 50
-    levels = 6
+    feature_depth = 100
+    levels = 8
 
     @property
     def max_window_duration_seconds(self):
@@ -47,7 +47,7 @@ class Model(abstract_models.MisconceptionWithFishingRangesModel):
             'fishing_localisation',
             'Fishing localisation',
             vessel_metadata,
-            loss_weight=50.0)
+            loss_weight=1.0)
 
         self.classification_training_objectives = []
         self.training_objectives = [self.fishing_localisation_objective]

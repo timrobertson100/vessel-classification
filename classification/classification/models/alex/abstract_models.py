@@ -61,9 +61,11 @@ class MisconceptionWithFishingRangesModel(MisconceptionModel):
 
             concatenated_multiscale_embedding = tf.concat(3, multiscale_layers)
 
+            embedding_with_dropout = slim.dropout(concatenated_multiscale_embedding, 0.25)
+
             fishing_outputs = tf.squeeze(
                 slim.conv2d(
-                    concatenated_multiscale_embedding,
+                    embedding_with_dropout,
                     1, [1, 1],
                     activation_fn=None),
                 squeeze_dims=[1, 3])

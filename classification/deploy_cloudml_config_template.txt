@@ -1,8 +1,8 @@
 trainingInput:
   args: [
     "{model_name}",
-    "--feature_dimensions", "12",
-    "--root_feature_path", "gs://world-fishing-827/data-production/classification/release-0.1.0/pipeline/output/features",
+    "--feature_dimensions", "14",
+    "--root_feature_path", "gs://world-fishing-827-dev-ttl30d/data-production/classification/alexwilson/release-0.1.0-full-adjacency-features/pipeline/output/features",
     "--training_output_path", "{output_path}/{model_name}",
     "--fishing_range_training_upweight", "1"]
   scaleTier: CUSTOM
