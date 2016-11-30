@@ -129,7 +129,9 @@ object AISAnnotator extends LazyLogging {
 
     // Do not process messages for MMSIs for which we have no annotations.
     val allowedMMSIs = ValueCache[Set[Int]]()
-    val filteredAISMessages = aisMessages.map { json =>
+    val filteredAISMessages = aisMessages
+    .filter(json => json.has("lat") && json.has("lon"))
+    .map { json =>
       (json.getLong("mmsi").toInt, json)
     }.withSideInputs(mmsisWithAnnotation)
       .filter {
