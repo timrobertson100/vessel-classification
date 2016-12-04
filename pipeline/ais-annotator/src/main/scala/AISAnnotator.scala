@@ -123,30 +123,13 @@ object AISAnnotator extends LazyLogging {
 
     val aisMessages = SCollection.unionAll(aisMessageInputs)
 
-    val annotationsByMmsi = SCollection.unionAll(annotationInputs).groupBy(_.mmsi)
-    val mmsisWithAnnotation =
-      annotationsByMmsi.map(_._1).map(x => (0, x)).groupByKey.map(_._2.toSet).asSingletonSideInput
+    val annotationsByMmsi = SCollection.unionAll(annotationInputs).map(a => (a.mmsi, a))
+    val filteredKeyedByMmsi = aisMessages.filter(json => json.has("lat") && json.has("lon")).map {
+      json =>
+        (json.getLong("mmsi").toInt, json)
+    }
 
-    // Do not process messages for MMSIs for which we have no annotations.
-    val allowedMMSIs = ValueCache[Set[Int]]()
-    val filteredAISMessages = aisMessages
-    .filter(json => json.has("lat") && json.has("lon"))
-    .map { json =>
-      (json.getLong("mmsi").toInt, json)
-    }.withSideInputs(mmsisWithAnnotation)
-      .filter {
-        case ((mmsi, json), ctx) =>
-          val mmsiSet = allowedMMSIs.get(() => ctx(mmsisWithAnnotation))
-
-          // Keep only relevant MMSIs and records with a location.
-          mmsiSet.contains(mmsi) && json.has("lat") && json.has("lon")
-      }
-      .toSCollection
-
-    // Remove all but location messages and key by mmsi.
-    val filteredGroupedByMmsi = filteredAISMessages.groupByKey
-
-    filteredGroupedByMmsi.join(annotationsByMmsi).flatMap {
+    filteredKeyedByMmsi.cogroup(annotationsByMmsi).flatMap {
       case (mmsi, (messagesIt, annotationsIt)) =>
         val messages = messagesIt.toSeq
         val annotations = annotationsIt.toSeq
