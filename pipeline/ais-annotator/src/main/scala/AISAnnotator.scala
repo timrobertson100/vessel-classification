@@ -126,7 +126,7 @@ object AISAnnotator extends LazyLogging {
     val annotationsByMmsi = SCollection.unionAll(annotationInputs).map(a => (a.mmsi, a))
     val filteredKeyedByMmsi = aisMessages.filter(json => json.has("lat") && json.has("lon")).map {
       json =>
-        (json.getLong("mmsi").toInt, json)
+        (json.getInt("mmsi"), json)
     }
 
     filteredKeyedByMmsi.cogroup(annotationsByMmsi).flatMap {
@@ -144,12 +144,17 @@ object AISAnnotator extends LazyLogging {
     val environment = remaining_args.required("env")
     val jobName = remaining_args.required("job-name")
     val jobConfigurationFile = remaining_args.required("job-config")
+    val mmsiListFile = remaining_args.optional("mmsi-list-file")
 
     val config = GcpConfig.makeConfig(environment, jobName)
 
     options.setRunner(classOf[DataflowPipelineRunner])
     options.setProject(config.projectId)
     options.setStagingLocation(config.dataflowStagingPath)
+
+    val mmsiSet: Set[Int] = mmsiListFile.toSeq.flatMap { fileName =>
+      managed(scala.io.Source.fromFile(fileName)).acquireAndGet(_.getLines.map(_.toInt))
+    }.toSet
 
     val annotatorConfig = managed(scala.io.Source.fromFile(jobConfigurationFile)).acquireAndGet {
       s =>
@@ -158,7 +163,9 @@ object AISAnnotator extends LazyLogging {
 
     managed(ScioContext(options)).acquireAndGet { sc =>
       val inputData = annotatorConfig.inputFilePatterns.map { path =>
-        readJsonFile(sc, path)
+        readJsonFile(sc, path).filter { json =>
+          (mmsiSet.isEmpty || mmsiSet.contains(json.getInt("mmsi")))
+        }
       }
 
       val annotations = annotatorConfig.jsonAnnotations.map {
