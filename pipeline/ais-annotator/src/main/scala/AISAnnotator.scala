@@ -9,7 +9,7 @@ import com.spotify.scio._
 import com.spotify.scio.values.SCollection
 import com.typesafe.scalalogging.{LazyLogging, Logger}
 import java.util.LinkedHashMap
-import org.joda.time.{Instant}
+import org.joda.time.{Duration, Instant}
 import org.json4s._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL.WithDouble._
@@ -19,6 +19,10 @@ import org.skytruth.common.ScioContextResource._
 import scala.collection.{mutable, immutable}
 
 import resource._
+
+object Parameters {
+  val windowDuration = Duration.standardDays(90)
+}
 
 case class JSONFileAnnotatorConfig(inputFilePattern: String,
                                    outputFieldName: String,
@@ -31,6 +35,7 @@ case class AnnotatorConfig(
     jsonAnnotations: Seq[JSONFileAnnotatorConfig]
 )
 
+// Start and end times of annotations are inclusive.
 case class MessageAnnotation(mmsi: Int,
                              name: String,
                              startTime: Instant,
@@ -71,6 +76,34 @@ object AISAnnotator extends LazyLogging {
     }
   }
 
+  def splitTimeRange(startTime: Instant,
+                     endTime: Instant,
+                     windowDuration: Duration): Seq[(Instant, Instant)] = {
+    val acc = mutable.ArrayBuffer[(Instant, Instant)]()
+    val end = endTime.getMillis
+    val offset = windowDuration.getMillis
+    var iter = startTime.getMillis
+    while (iter <= end) {
+      val next = ((iter / offset) * offset) + offset
+      val cappedEnd = math.min(next, end)
+      acc.append((new Instant(iter), new Instant(cappedEnd)))
+      iter = next
+    }
+
+    acc.toSeq
+  }
+
+  def splitAnnotationsAtWindowBoundaries(
+      annotations: SCollection[MessageAnnotation],
+      windowDuration: Duration): SCollection[MessageAnnotation] = {
+    annotations.flatMap { annotation =>
+      splitTimeRange(annotation.startTime, annotation.endTime, windowDuration).map {
+        case (s, e) =>
+          annotation.copy(startTime = s, endTime = e)
+      }
+    }
+  }
+
   def annotateVesselMessages(messages: Iterable[JValue],
                              annotations: Iterable[MessageAnnotation]): Seq[JValue] = {
     // Sort messages and annotations by (start) time.
@@ -100,7 +133,7 @@ object AISAnnotator extends LazyLogging {
                  annotationIterator.current.get._1)) {
           val annotations = annotationIterator.current.get._2
 
-          activeAnnotations ++= annotations.filter { _.endTime.isAfter(ts) }
+          activeAnnotations ++= annotations.filter { !_.endTime.isBefore(ts) }
 
           annotationIterator.getNext()
         }
@@ -117,20 +150,30 @@ object AISAnnotator extends LazyLogging {
     annotatedRows.toSeq
   }
 
-  def annotateAllMessages(
-      aisMessageInputs: Seq[SCollection[JValue]],
-      annotationInputs: Seq[SCollection[MessageAnnotation]]): SCollection[JValue] = {
+  def annotateAllMessages(aisMessageInputs: Seq[SCollection[JValue]],
+                          annotationInputs: Seq[SCollection[MessageAnnotation]],
+                          windowDuration: Duration): SCollection[JValue] = {
+
+    def window(time: Instant) =
+      new Instant((time.getMillis / windowDuration.getMillis) * windowDuration.getMillis)
 
     val aisMessages = SCollection.unionAll(aisMessageInputs)
 
-    val annotationsByMmsi = SCollection.unionAll(annotationInputs).map(a => (a.mmsi, a))
-    val filteredKeyedByMmsi = aisMessages.filter(json => json.has("lat") && json.has("lon")).map {
-      json =>
-        (json.getLong("mmsi").toInt, json)
-    }
+    val splitAnnotations =
+      splitAnnotationsAtWindowBoundaries(SCollection.unionAll(annotationInputs), windowDuration)
 
-    filteredKeyedByMmsi.cogroup(annotationsByMmsi).flatMap {
-      case (mmsi, (messagesIt, annotationsIt)) =>
+    val annotationsByMmsiAndWindow = splitAnnotations.map { annotation =>
+      ((annotation.mmsi, window(annotation.startTime)), annotation)
+    }
+    val filteredKeyedByMmsiAndWindow =
+      aisMessages.filter(json => json.has("lat") && json.has("lon")).map { json =>
+        val mmsi = json.getLong("mmsi").toInt
+        val windowTs = window(Instant.parse(json.getString("timestamp")))
+        ((mmsi, windowTs), json)
+      }
+
+    filteredKeyedByMmsiAndWindow.cogroup(annotationsByMmsiAndWindow).flatMap {
+      case (_, (messagesIt, annotationsIt)) =>
         val messages = messagesIt.toSeq
         val annotations = annotationsIt.toSeq
         annotateVesselMessages(messages, annotations)
@@ -170,7 +213,7 @@ object AISAnnotator extends LazyLogging {
                                annotation.defaultValue)
       }
 
-      val annotated = annotateAllMessages(inputData, annotations)
+      val annotated = annotateAllMessages(inputData, annotations, Parameters.windowDuration)
       val annotatedToString = annotated.map(json => compact(render(json)))
 
       annotatedToString.saveAsTextFile(annotatorConfig.outputFilePath)

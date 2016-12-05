@@ -3,7 +3,7 @@ package org.skytruth.ais_annotator
 import com.fasterxml.jackson.databind.{ObjectMapper, SerializationFeature}
 import com.spotify.scio.testing.PipelineSpec
 import com.spotify.scio.values.SCollection
-import org.joda.time.{Instant}
+import org.joda.time.{Duration, Instant}
 import org.json4s._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL.WithDouble._
@@ -31,6 +31,29 @@ class AnnotatorTests extends PipelineSpec with Matchers {
   }
 
   private def jsonFromString(lines: SCollection[String]) = lines.map(l => parse(l))
+
+  "Time range splitting" should "work, including for boundary cases" in {
+    val res1 = AISAnnotator.splitTimeRange(Instant.parse("20150101T04:00:00Z"),
+                                           Instant.parse("20150101T07:00:00Z"),
+                                           Duration.standardHours(1))
+
+    val expected1 = Seq((Instant.parse("20150101T04:00:00Z"), Instant.parse("20150101T05:00:00Z")),
+                        (Instant.parse("20150101T05:00:00Z"), Instant.parse("20150101T06:00:00Z")),
+                        (Instant.parse("20150101T06:00:00Z"), Instant.parse("20150101T07:00:00Z")),
+                        (Instant.parse("20150101T07:00:00Z"), Instant.parse("20150101T07:00:00Z")))
+
+    res1 should contain theSameElementsAs expected1
+
+    val res2 = AISAnnotator.splitTimeRange(Instant.parse("20150101T04:20:00Z"),
+                                           Instant.parse("20150101T06:50:00Z"),
+                                           Duration.standardHours(1))
+
+    val expected2 = Seq((Instant.parse("20150101T04:20:00Z"), Instant.parse("20150101T05:00:00Z")),
+                        (Instant.parse("20150101T05:00:00Z"), Instant.parse("20150101T06:00:00Z")),
+                        (Instant.parse("20150101T06:00:00Z"), Instant.parse("20150101T06:50:00Z")))
+
+    res2 should contain theSameElementsAs expected2
+  }
 
   "The annotator" should "annotate" in {
     val msgs = Seq(
@@ -69,7 +92,9 @@ class AnnotatorTests extends PipelineSpec with Matchers {
                                          32.0))
 
       val annotations = Seq(sc.parallelize(annot1), sc.parallelize(annot2))
-      val res = AISAnnotator.annotateAllMessages(Seq(sc.parallelize(msgs)), annotations)
+      val res = AISAnnotator.annotateAllMessages(Seq(sc.parallelize(msgs)),
+                                                 annotations,
+                                                 Duration.standardHours(1))
 
       res should haveSize(9)
 
@@ -86,7 +111,6 @@ class AnnotatorTests extends PipelineSpec with Matchers {
       )
 
       res should containInAnyOrder(expected)
-
     }
   }
 
