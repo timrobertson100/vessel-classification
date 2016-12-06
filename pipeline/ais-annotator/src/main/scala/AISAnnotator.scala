@@ -26,9 +26,9 @@ case class JSONFileAnnotatorConfig(inputFilePattern: String,
                                    defaultValue: Double)
 
 case class AnnotatorConfig(
-    inputFilePatterns: Seq[String],
+    inputFilePatterns: IndexedSeq[String],
     outputFilePath: String,
-    jsonAnnotations: Seq[JSONFileAnnotatorConfig]
+    jsonAnnotations: IndexedSeq[JSONFileAnnotatorConfig]
 )
 
 case class MessageAnnotation(mmsi: Int,
@@ -118,18 +118,20 @@ object AISAnnotator extends LazyLogging {
   }
 
   def annotateAllMessages(
-      aisMessageInputs: Seq[SCollection[JValue]],
+      aisMessages: SCollection[JValue],
       annotationInputs: Seq[SCollection[MessageAnnotation]]): SCollection[JValue] = {
 
-    val aisMessages = SCollection.unionAll(aisMessageInputs)
-
-    val annotationsByMmsi = SCollection.unionAll(annotationInputs).map(a => (a.mmsi, a))
     val filteredKeyedByMmsi = aisMessages.filter(json => json.has("lat") && json.has("lon")).map {
       json =>
         (json.getInt("mmsi"), json)
-    }
+    }.groupByKey
+      .map { case (mmsi, records) =>
+        logger.info(s"After group by $mmsi has ${records.size} records")
+        (mmsi, records)
+      }
+    val annotationsByMmsi = SCollection.unionAll(annotationInputs).map(a => (a.mmsi, a)).groupByKey
 
-    filteredKeyedByMmsi.cogroup(annotationsByMmsi).flatMap {
+    filteredKeyedByMmsi.join(annotationsByMmsi).flatMap {
       case (mmsi, (messagesIt, annotationsIt)) =>
         val messages = messagesIt.toSeq
         val annotations = annotationsIt.toSeq
@@ -152,21 +154,25 @@ object AISAnnotator extends LazyLogging {
     options.setProject(config.projectId)
     options.setStagingLocation(config.dataflowStagingPath)
 
-    val mmsiSet: Set[Int] = mmsiListFile.toSeq.flatMap { fileName =>
-      managed(scala.io.Source.fromFile(fileName)).acquireAndGet(_.getLines.map(_.toInt))
-    }.toSet
-
     val annotatorConfig = managed(scala.io.Source.fromFile(jobConfigurationFile)).acquireAndGet {
       s =>
         readYamlConfig(s.mkString)
     }
 
+    val includedMmsis = mmsiListFile.toSeq.flatMap { fileName =>
+      managed(scala.io.Source.fromFile(fileName))
+        .acquireAndGet(_.getLines.toList.map(_.trim.toInt))
+    }.toSet
+
     managed(ScioContext(options)).acquireAndGet { sc =>
+      logger.info(s"Mmsi set has ${includedMmsis.size} elements.")
       val inputData = annotatorConfig.inputFilePatterns.map { path =>
-        readJsonFile(sc, path).filter { json =>
-          (mmsiSet.isEmpty || mmsiSet.contains(json.getInt("mmsi")))
-        }
+        readJsonFile(sc, path)      
       }
+
+      val filteredAisMsgs = SCollection.unionAll(inputData)
+        .filter { json => includedMmsis.isEmpty || includedMmsis.contains(json.getInt("mmsi")) }
+
 
       val annotations = annotatorConfig.jsonAnnotations.map {
         case annotation =>
@@ -177,7 +183,7 @@ object AISAnnotator extends LazyLogging {
                                annotation.defaultValue)
       }
 
-      val annotated = annotateAllMessages(inputData, annotations)
+      val annotated = annotateAllMessages(filteredAisMsgs, annotations)
       val annotatedToString = annotated.map(json => compact(render(json)))
 
       annotatedToString.saveAsTextFile(annotatorConfig.outputFilePath)
